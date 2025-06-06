@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>망고쌤의 아파트 잡기</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin:0; padding:0; background:#ffe37a; height:100%; }
+    body {
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:flex-start; min-height:100vh; font-family: 'Pretendard', 'Segoe UI', Arial, sans-serif;
+    }
+    h1 { margin:20px 0 10px 0; font-size:2.1rem; color:#ec9307; text-shadow:0 3px 16px #0002; }
+    #gameWrap { position:relative; width:360px; height:540px; background:#fff9db; border-radius:18px; box-shadow:0 2px 20px #0002; overflow:hidden; }
+    #canvas { background:transparent; display:block; }
+    #scoreBoard {
+      position:absolute; right:14px; top:10px; font-size:1.13rem; color:#fff; background:rgba(255,174,0,0.92); padding:4px 18px 4px 14px; border-radius:16px; box-shadow:0 0 12px #b97c00aa;
+      font-weight:bold; letter-spacing:1px; z-index:11;
+    }
+    #restartBtn {
+      position:absolute; left:50%; top:60%; transform:translate(-50%,-50%);
+      background:#ffbe3b; color:#fff; border:none; border-radius:10px;
+      padding:13px 33px; font-size:1.2rem; font-weight:bold; cursor:pointer;
+      box-shadow:0 3px 20px #ec930788;
+      display:none; z-index:10;
+    }
+    #effectMsg {
+      position:absolute; left:50%; top:46px; transform:translate(-50%,0);
+      color:#fbd029; font-size:1.36rem; font-weight:900; letter-spacing:1px;
+      text-shadow: 0 3px 16px #a55, 0 0px 16px #fff9, 0 0px 6px #000;
+      z-index:21; pointer-events:none; display:none; transition: opacity 0.25s;
+      animation: upburst 0.9s cubic-bezier(.55,.08,.59,.82);
+    }
+    @keyframes upburst {
+      0%   { transform:translate(-50%,30px) scale(0.7); opacity:0;}
+      18%  { opacity:1; }
+      42%  { transform:translate(-50%,-14px) scale(1.22);}
+      85%  { transform:translate(-50%,0) scale(1);}
+      100% { opacity:0;}
+    }
+    #mobileBtns {
+      display:none; position:absolute; bottom:18px; left:0; width:100%; z-index:9; justify-content:space-between;
+    }
+    .mbtn {
+      background:#ffe37a; border:2px solid #ffd44b; color:#ec9307; border-radius:14px;
+      padding:15px 28px; font-size:1.3rem; font-weight:bold; box-shadow:0 2px 10px #0002;
+      margin:0 10px; cursor:pointer; user-select:none;
+      transition: background 0.15s;
+    }
+    .mbtn:active { background:#ffd44b; }
+    #madeby {
+      margin-top: 26px;
+      color: #d99d36;
+      font-size: 1.03rem;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.7px;
+      opacity: 0.85;
+      user-select: none;
+    }
+    #hallOfFame {
+      margin:32px 0 0 0;
+      padding:16px 12px 14px 12px;
+      background:#fff7e1;
+      border-radius:18px;
+      box-shadow:0 1px 12px #dfb50e22;
+      max-width:370px;
+      width:96vw;
+      color:#775300;
+      font-size:1.04rem;
+      font-weight:400;
+    }
+    #hallOfFameTitle {
+      font-size:1.15rem;
+      font-weight:800;
+      color:#e7b200;
+      margin-bottom:6px;
+      letter-spacing:1px;
+      text-align:center;
+    }
+    #hallOfFameList { margin:0; padding:0 0 0 8px; }
+    #hallOfFameList li {
+      margin-bottom:8px;
+      list-style-type:"🏆 ";
+      background: none;
+      border-left:2px solid #ffe37a;
+      padding-left:9px;
+      word-break:break-all;
+    }
+    @media (max-width:400px) {
+      #gameWrap { width:98vw; height:66vw; min-width:240px; min-height:320px;}
+      #canvas { width:100%!important; height:100%!important;}
+      #hallOfFame { font-size:0.97rem; padding:10px 4px;}
+    }
+    @media (max-width:600px) {
+      #mobileBtns { display:flex; }
+    }
+  </style>
+</head>
+<body>
+  <h1>망고쌤의 아파트 잡기</h1>
+  <div style="margin-bottom:6px; color:#b87700; font-size:1.03rem; opacity:0.98;">
+    부자가 되려면 <b>아파트만 잡고</b>,<br>지산, 오피스텔, 지주택, 구역미지정빌라를 <b>피하라!</b>
+  </div>
+  <div id="gameWrap">
+    <canvas id="canvas" width="360" height="540"></canvas>
+    <div id="scoreBoard">순자산: <span id="score">0</span>억</div>
+    <div id="effectMsg"></div>
+    <button id="restartBtn" onclick="restartGame()">다시 시작</button>
+    <div id="mobileBtns">
+      <button class="mbtn" ontouchstart="moveLeft()" ontouchend="stopMove()">◀️</button>
+      <button class="mbtn" ontouchstart="moveRight()" ontouchend="stopMove()">▶️</button>
+    </div>
+    <audio id="coin" src="https://cdn.pixabay.com/audio/2022/10/16/audio_125b0cc6e6.mp3" preload="auto"></audio>
+    <audio id="bgm" src="https://cdn.pixabay.com/audio/2022/10/16/audio_124bfc97b6.mp3" loop></audio>
+  </div>
+  <div style="margin-top:18px; color:#db9300; font-size:0.97rem; opacity:0.82;">
+    ← → 또는 좌우 버튼으로 사람을 움직여<br>아파트는 잡고, 나머지는 피하세요!
+  </div>
+  <div id="madeby">made by 적호.</div>
+  <div id="hallOfFame"></div>
+  <script>
+    // === 캔버스/기본 ===
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width, H = canvas.height;
+
+    // === 캐릭터/오브젝트 정의 ===
+    const player = {
+      x: W/2-18, y: H-54, w:36, h:36, speed:5.5, dx:0
+    };
+    const mango = { x: 14, y: 12, w: 54, h: 54 };
+    let objects = [];
+    let coins = []; // 금화 파티클
+    let gameover = false;
+    let networth = 0; // 순자산(억)
+    let frame = 0;
+    let objectInterval = 48;
+    let objectSpeed = 3.2;
+    let maxSimul = 2;
+    let moveDir = 0; // 모바일
+
+    // 단계 달성 플래그
+    let reached30 = false;
+    let reached70 = false;
+    let reached100 = false;
+
+    // 오브젝트 종류(랜덤)
+    const objectTypes = [
+      {type:"apartment", label:"아파트"},
+      {type:"jisang",   label:"지산"},
+      {type:"officetel",label:"오피스텔"},
+      {type:"jijutaek", label:"지주택"},
+      {type:"villa",    label:"빌라"}
+    ];
+
+    // === 오브젝트 그림(명확하게!) ===
+    function drawObject(obj) {
+      ctx.save();
+      if(obj.type==="apartment") { // 아파트: 고층, 파랑, 노란옥상, "APT"
+        ctx.beginPath();
+        ctx.rect(obj.x, obj.y, obj.w, obj.h);
+        ctx.fillStyle = "#a8d5f4";
+        ctx.fill();
+        ctx.fillStyle="#2969bd";
+        ctx.fillRect(obj.x, obj.y, obj.w, 17);
+        ctx.fillStyle="#ffce3e";
+        ctx.fillRect(obj.x, obj.y, obj.w, 7); // 옥상
+        ctx.fillStyle="#fff";
+        for(let i=1;i<obj.h/20-0.5;i++){
+          ctx.fillRect(obj.x+8, obj.y+i*20, obj.w-16, 9);
+        }
+        ctx.save();
+        ctx.font="bold 11px Pretendard, Arial";
+        ctx.fillStyle="#2e2d48";
+        ctx.textAlign="center";
+        ctx.fillText("APT", obj.x+obj.w/2, obj.y+obj.h-5);
+        ctx.restore();
+      } else if(obj.type==="jisang") {
+        ctx.fillStyle = "#7ddb8a";
+        ctx.fillRect(obj.x, obj.y+obj.h*0.55, obj.w, obj.h*0.45);
+        ctx.fillStyle = "#d4b07f";
+        ctx.fillRect(obj.x, obj.y+obj.h*0.28, obj.w, obj.h*0.27);
+        ctx.fillStyle = "#a7a39d";
+        ctx.fillRect(obj.x, obj.y, obj.w, obj.h*0.28);
+        ctx.save();
+        ctx.font="bold 11px Pretendard, Arial";
+        ctx.fillStyle="#166438";
+        ctx.textAlign="center";
+        ctx.fillText("지산", obj.x+obj.w/2, obj.y+13);
+        ctx.restore();
+      } else if(obj.type==="officetel") {
+        ctx.fillStyle = "#ffd2ae";
+        ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+        ctx.fillStyle = "#a5adb9";
+        ctx.fillRect(obj.x, obj.y, obj.w, 13);
+        ctx.save();
+        ctx.font="bold 11px Pretendard, Arial";
+        ctx.fillStyle="#c75b1f";
+        ctx.textAlign="center";
+        ctx.fillText("OFFI", obj.x+obj.w/2, obj.y+11);
+        ctx.restore();
+      } else if(obj.type==="jijutaek") {
+        ctx.fillStyle="#f4ef77";
+        ctx.fillRect(obj.x, obj.y+obj.h*0.53, obj.w, obj.h*0.47);
+        ctx.fillStyle="#28bfa9";
+        ctx.fillRect(obj.x, obj.y+obj.h*0.28, obj.w, obj.h*0.25);
+        ctx.save();
+        ctx.font="bold 11px Pretendard, Arial";
+        ctx.fillStyle="#227f66";
+        ctx.textAlign="center";
+        ctx.fillText("지주", obj.x+obj.w/2, obj.y+obj.h*0.28+11);
+        ctx.restore();
+      } else if(obj.type==="villa") {
+        ctx.fillStyle="#ffd3ee";
+        ctx.fillRect(obj.x, obj.y+obj.h*0.38, obj.w, obj.h*0.62);
+        ctx.fillStyle="#44a2ff";
+        ctx.beginPath();
+        ctx.moveTo(obj.x, obj.y+obj.h*0.38);
+        ctx.lineTo(obj.x+obj.w/2, obj.y);
+        ctx.lineTo(obj.x+obj.w, obj.y+obj.h*0.38);
+        ctx.closePath();
+        ctx.fill();
+        ctx.save();
+        ctx.font="bold 12px Pretendard, Arial";
+        ctx.fillStyle="#d5489e";
+        ctx.textAlign="center";
+        ctx.fillText("빌라", obj.x+obj.w/2, obj.y+obj.h*0.38+18);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // === 망고, 사람 ===
+    function drawMango(x, y, size=54) {
+      ctx.save();
+      ctx.translate(x+size/2, y+size/2);
+      ctx.rotate(-0.12);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size*0.46, size*0.34, 0, 0, Math.PI*2);
+      ctx.fillStyle = "#ffe156";
+      ctx.shadowColor = "#ffad08"; ctx.shadowBlur=7;
+      ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.beginPath(); ctx.arc(-size*0.13, size*0.13, size*0.09, 0, Math.PI*2);
+      ctx.fillStyle="#ffcf91"; ctx.fill();
+      ctx.beginPath(); ctx.arc(size*0.16, size*0.12, size*0.07, 0, Math.PI*2);
+      ctx.fillStyle="#ffc875"; ctx.fill();
+      ctx.save();
+      ctx.rotate(-0.8);
+      ctx.beginPath();
+      ctx.moveTo(-size*0.06, -size*0.23);
+      ctx.quadraticCurveTo(-size*0.12, -size*0.40, size*0.06, -size*0.33);
+      ctx.lineTo(size*0.00, -size*0.15);
+      ctx.fillStyle="#5fc173"; ctx.fill();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(-size*0.13, size*0.02, size*0.06, 0, Math.PI*2);
+      ctx.arc(size*0.13, size*0.02, size*0.06, 0, Math.PI*2);
+      ctx.fillStyle="#3c2b22"; ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, size*0.11, size*0.14, 0.10, Math.PI-0.1);
+      ctx.lineWidth=2; ctx.strokeStyle="#a8792b"; ctx.stroke();
+      ctx.restore();
+    }
+    function drawPlayer(x, y, w, h) {
+      ctx.save();
+      ctx.translate(x+w/2, y+h/2);
+      ctx.lineWidth=4;
+      ctx.strokeStyle="#222";
+      ctx.beginPath();
+      ctx.moveTo(0, -h*0.2);
+      ctx.lineTo(0, h*0.19); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -h*0.08); ctx.lineTo(-w*0.21, h*0.08); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -h*0.08); ctx.lineTo(w*0.21, h*0.08); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, h*0.19); ctx.lineTo(-w*0.16, h*0.36); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, h*0.19); ctx.lineTo(w*0.16, h*0.36); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, -h*0.23, w*0.17, 0, Math.PI*2);
+      ctx.fillStyle="#ffeecb"; ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-w*0.06, -h*0.25, w*0.03, 0, Math.PI*2);
+      ctx.arc(w*0.06, -h*0.25, w*0.03, 0, Math.PI*2);
+      ctx.fillStyle="#222"; ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, -h*0.21, w*0.06, Math.PI*0.15, Math.PI*0.85);
+      ctx.strokeStyle="#a98543"; ctx.lineWidth=1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // === 금화 파티클 ===
+    function drawCoin(x, y, r=7) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.fillStyle="#ffd700";
+      ctx.shadowColor="#fffcc1";
+      ctx.shadowBlur=6;
+      ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.strokeStyle="#cf9d23";
+      ctx.lineWidth=2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x-2, y-3, r*0.28, 0, Math.PI*2);
+      ctx.fillStyle="#fff8"; ctx.fill();
+      ctx.restore();
+    }
+    function spawnCoinBurst(x, y, n=13) {
+      for(let i=0;i<n;i++) {
+        let angle = Math.PI*2*(i/n) + Math.random()*0.2;
+        let speed = 2.8+Math.random()*2;
+        coins.push({
+          x:x, y:y, r:7+Math.random()*4,
+          vx:Math.cos(angle)*speed,
+          vy:Math.sin(angle)*speed-1,
+          alpha:1.15
+        });
+      }
+    }
+    function updateCoins() {
+      let nextCoins=[];
+      for(let c of coins) {
+        c.x += c.vx;
+        c.y += c.vy;
+        c.vy += 0.23;
+        c.alpha -= 0.04+Math.random()*0.02;
+        if(c.alpha>0) nextCoins.push(c);
+      }
+      coins=nextCoins;
+    }
+    function renderCoins() {
+      for(let c of coins) {
+        ctx.globalAlpha=Math.max(0,c.alpha);
+        drawCoin(c.x,c.y,c.r);
+        ctx.globalAlpha=1;
+      }
+    }
+
+    // === 효과 메시지 ===
+    function showEffectMsg(txt) {
+      const msgDiv = document.getElementById('effectMsg');
+      msgDiv.textContent = txt;
+      msgDiv.style.display = "block";
+      msgDiv.style.opacity = "1";
+      msgDiv.style.animation = "upburst 0.9s cubic-bezier(.55,.08,.59,.82)";
+      setTimeout(()=>{msgDiv.style.display="none";}, 900);
+    }
+
+    // === 명예의 전당 ===
+    function loadHallOfFame() {
+      let arr = [];
+      try { arr = JSON.parse(localStorage.getItem("mango_halloffame")||"[]"); } catch(e) { arr=[]; }
+      return Array.isArray(arr) ? arr : [];
+    }
+    function saveHallOfFame(arr) {
+      localStorage.setItem("mango_halloffame", JSON.stringify(arr));
+    }
+    function addToHallOfFame(nick, memo, dateStr) {
+      let arr = loadHallOfFame();
+      arr.unshift({nick, memo, date: dateStr});
+      if(arr.length > 30) arr.length=30;
+      saveHallOfFame(arr);
+      renderHallOfFame();
+    }
+    function renderHallOfFame() {
+      const wrap = document.getElementById('hallOfFame');
+      let arr = loadHallOfFame();
+      if(!arr.length) { wrap.innerHTML = ""; return;}
+      let html = `<div id="hallOfFameTitle">🏆 명예의 전당 🏆</div><ul id="hallOfFameList">`;
+      for(let e of arr) {
+        html += `<li><b>${e.nick}</b> (${e.date})<br><span style="font-size:0.98em;color:#805e11;">"${e.memo}"</span></li>`;
+      }
+      html += "</ul>";
+      wrap.innerHTML = html;
+    }
+
+    // === 게임 루프 ===
+    function resetGame() {
+      player.x = W/2-player.w/2;
+      objects = [];
+      coins = [];
+      gameover = false; networth = 0; frame = 0;
+      objectInterval = 48; objectSpeed = 3.2; maxSimul=2;
+      reached30 = reached70 = reached100 = false;
+      document.getElementById('restartBtn').style.display='none';
+      document.getElementById('score').innerText=networth;
+      document.getElementById('effectMsg').style.display="none";
+    }
+
+    function milestoneCheck() {
+      if(!reached30 && networth >= 30) {
+        reached30 = true;
+        setTimeout(() => {
+          if(confirm("축하드립니다, 당신은 상위 1% 자산가가 되셨습니다.\n\n계속 달려가시겠습니까?")) {
+            objectSpeed *= 1.3;
+            showEffectMsg("속도 ↑ (상위 1%)");
+          }
+        }, 10);
+      }
+      if(!reached70 && networth >= 70) {
+        reached70 = true;
+        setTimeout(() => {
+          if(confirm("축하드립니다!! 당신은 상위 0.1% 자산가가 되셨습니다.\n\n계속 또 달려가시겠습니까?")) {
+            objectSpeed *= 1.3;
+            showEffectMsg("속도 ↑ (상위 0.1%)");
+          }
+        }, 10);
+      }
+      if(!reached100 && networth >= 100) {
+        reached100 = true;
+        setTimeout(() => {
+          let nick = prompt("축하드립니다. 당신은 100억 자산가가 되셨습니다.\n\n이 돈으로 무엇을 하고 싶으신가요?\n(원하신다면 하고 싶은 말을 남기세요!)\n\n※ 기록은 명예의 전당에 남습니다.", "");
+          if(!nick) nick="익명";
+          let memo = prompt("당신의 닉네임 또는 이름을 입력해주세요. (ex. 적호)", "");
+          if(!memo) memo="익명";
+          let dateStr = new Date().toLocaleString('ko-KR', {year:"numeric",month:"2-digit",day:"2-digit", hour:"2-digit", minute:"2-digit"});
+          addToHallOfFame(memo, nick, dateStr);
+          showEffectMsg("명예의 전당에 등록!");
+        }, 100);
+      }
+    }
+
+    function gameLoop() {
+      if (gameover) return;
+      frame++;
+
+      if (frame % Math.round(objectInterval) === 0) {
+        let numToAdd = Math.floor(1 + Math.random() * maxSimul);
+        for (let n = 0; n < numToAdd; n++) {
+          let oinfo = objectTypes[Math.floor(Math.random() * objectTypes.length)];
+          let objW = 36 + Math.random() * 18, objH = 44 + Math.random() * 28;
+          let bx = mango.x + mango.w + Math.random() * ((W - mango.w - 45) - objW);
+          objects.push({
+            x: bx, y: mango.y + mango.h / 2, w: objW, h: objH, vy: objectSpeed + Math.random() * 1.7, type: oinfo.type, label: oinfo.label
+          });
+        }
+        if (objectInterval > 14) objectInterval -= 0.18;
+        if (objectSpeed < 8.8) objectSpeed += 0.014;
+        if (maxSimul < 6 && frame % 600 === 0) maxSimul++;
+      }
+
+      if (moveDir !== 0) {
+        player.x += moveDir * player.speed;
+        if (player.x < 0) player.x = 0;
+        if (player.x > W - player.w) player.x = W - player.w;
+      }
+
+      for (let o of objects) {
+        o.y += o.vy;
+      }
+
+      let remain = [];
+      for (let o of objects) {
+        if (
+          player.x < o.x + o.w - 8 &&
+          player.x + player.w - 8 > o.x &&
+          player.y < o.y + o.h &&
+          player.y + player.h > o.y + 8
+        ) {
+          if (o.type === "apartment") {
+            networth += 5;
+            playCoin();
+            document.getElementById('score').innerText = networth;
+            showEffectMsg("순자산 +5억원!");
+            spawnCoinBurst(player.x + player.w / 2, player.y);
+            milestoneCheck();
+            continue;
+          } else {
+            gameover = true;
+            document.getElementById('restartBtn').style.display = 'block';
+            stopBGM();
+            render();
+            return;
+          }
+        }
+        if (o.y < H) remain.push(o);
+      }
+      objects = remain;
+
+      updateCoins();
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, W, H);
+      drawMango(mango.x, mango.y, mango.w);
+      drawPlayer(player.x, player.y, player.w, player.h);
+      for (let o of objects) drawObject(o);
+      renderCoins();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (gameover) return;
+      if (e.keyCode == 37) player.x -= player.speed * 1.5;
+      else if (e.keyCode == 39) player.x += player.speed * 1.5;
+      if (player.x < 0) player.x = 0;
+      if (player.x > W - player.w) player.x = W - player.w;
+    });
+
+    function moveLeft() { moveDir = -1; }
+    function moveRight() { moveDir = 1; }
+    function stopMove() { moveDir = 0; }
+
+    let touchStartX = null;
+    canvas.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+    });
+    canvas.addEventListener('touchmove', e => {
+      if (gameover) return;
+      let dx = e.touches[0].clientX - touchStartX;
+      player.x += dx * 0.13;
+      if (player.x < 0) player.x = 0;
+      if (player.x > W - player.w) player.x = W - player.w;
+      touchStartX = e.touches[0].clientX;
+    });
+    canvas.addEventListener('touchend', () => { touchStartX = null; });
+
+    function playCoin() {
+      let coin = document.getElementById('coin');
+      coin.currentTime = 0;
+      coin.play();
+    }
+
+    function playBGM() {
+      const bgm = document.getElementById('bgm');
+      bgm.currentTime = 0;
+      bgm.volume = 0.65;
+      bgm.play().catch(() => { });
+    }
+    function stopBGM() {
+      document.getElementById('bgm').pause();
+    }
+
+    function restartGame() {
+      resetGame();
+      render();
+      setTimeout(() => {
+        playBGM();
+        gameLoop();
+      }, 350);
+    }
+
+    // === 초기화 ===
+    renderHallOfFame();
+    resetGame();
+    render();
+    setTimeout(() => {
+      playBGM();
+      gameLoop();
+    }, 900);
+
+    window.moveLeft = moveLeft;
+    window.moveRight = moveRight;
+    window.stopMove = stopMove;
+  </script>
+</body>
+</html>
